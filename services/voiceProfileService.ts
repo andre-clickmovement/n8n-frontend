@@ -14,34 +14,22 @@ function generateId(): string {
 }
 
 export async function getVoiceProfiles(userId: string): Promise<VoiceProfile[]> {
-  console.log('getVoiceProfiles called for user:', userId);
-
   if (isDemoMode) {
-    console.log('Demo mode - returning demo profiles');
     return demoProfiles.filter(p => p.user_id === userId);
   }
 
-  try {
-    console.log('Fetching profiles from Supabase...');
-    const { data, error } = await supabase
-      .from(TABLES.VOICE_PROFILES)
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false });
+  const { data, error } = await supabase
+    .from(TABLES.VOICE_PROFILES)
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
 
-    console.log('Supabase getVoiceProfiles response - data:', data);
-    console.log('Supabase getVoiceProfiles response - error:', error);
-
-    if (error) {
-      console.error('Error fetching voice profiles:', error);
-      throw error;
-    }
-
-    return data as VoiceProfile[];
-  } catch (err) {
-    console.error('Exception in getVoiceProfiles:', err);
-    throw err;
+  if (error) {
+    console.error('Error fetching voice profiles:', error);
+    throw error;
   }
+
+  return data as VoiceProfile[];
 }
 
 export async function getVoiceProfile(profileId: string): Promise<VoiceProfile | null> {
@@ -91,9 +79,6 @@ export async function createVoiceProfile(
     return newProfile;
   }
 
-  console.log('Creating voice profile for user:', userId);
-  console.log('Form data:', JSON.stringify(formData, null, 2));
-
   const insertData = {
     user_id: userId,
     profile_name: formData.profile_name,
@@ -111,20 +96,15 @@ export async function createVoiceProfile(
     uses_metaphors: formData.uses_metaphors,
     uses_humor: formData.uses_humor,
     samples: formData.samples,
-    status: 'draft' as VoiceProfileStatus,
+    status: 'ready' as VoiceProfileStatus,
     total_generations: 0,
   };
-
-  console.log('Insert data:', JSON.stringify(insertData, null, 2));
 
   const { data, error } = await supabase
     .from(TABLES.VOICE_PROFILES)
     .insert(insertData)
     .select()
     .single();
-
-  console.log('Supabase response - data:', data);
-  console.log('Supabase response - error:', error);
 
   if (error) {
     console.error('Error creating voice profile:', error);

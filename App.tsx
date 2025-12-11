@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { LandingPage } from './components/LandingPage';
 import { DashboardLayout } from './components/dashboard/DashboardLayout';
@@ -37,21 +37,14 @@ function AppContent() {
   }, [isAuthenticated, user]);
 
   const loadProfiles = async () => {
-    console.log('loadProfiles called, user:', user?.id);
-    if (!user) {
-      console.log('No user, skipping loadProfiles');
-      return;
-    }
+    if (!user) return;
     setIsLoadingProfiles(true);
     try {
-      console.log('Calling getVoiceProfiles...');
       const data = await getVoiceProfiles(user.id);
-      console.log('Got profiles:', data);
       setProfiles(data);
     } catch (error) {
       console.error('Failed to load profiles:', error);
     } finally {
-      console.log('loadProfiles finished');
       setIsLoadingProfiles(false);
     }
   };
