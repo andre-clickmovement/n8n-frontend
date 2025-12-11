@@ -1,5 +1,8 @@
 import {
   ContentSource,
+  SentenceStyle,
+  VocabularyLevel,
+  ParagraphPattern,
   type GenerationRequest,
   type N8nWebhookPayload,
   type N8nWebhookResponse,
@@ -24,6 +27,8 @@ export async function triggerNewsletterGeneration({
   request,
   voiceProfile,
 }: TriggerGenerationParams): Promise<N8nWebhookResponse> {
+  console.log('Triggering newsletter generation with voice profile:', voiceProfile.profile_name);
+
   const payload: N8nWebhookPayload = {
     user_id: userId,
     profile_id: profileId,
@@ -34,23 +39,26 @@ export async function triggerNewsletterGeneration({
     youtube_url: request.content_source === ContentSource.YouTube ? request.youtube_url || null : null,
     article_content: request.content_source === ContentSource.Article ? request.article_content || null : null,
     voice_profile: {
-      profile_name: voiceProfile.profile_name,
-      tone: voiceProfile.tone,
-      formality: voiceProfile.formality,
-      detail_level: voiceProfile.detail_level,
-      sentence_style: voiceProfile.sentence_style,
-      vocabulary_level: voiceProfile.vocabulary_level,
-      common_phrases: voiceProfile.common_phrases,
-      avoid_phrases: voiceProfile.avoid_phrases,
-      uses_questions: voiceProfile.uses_questions,
-      uses_data: voiceProfile.uses_data,
-      uses_anecdotes: voiceProfile.uses_anecdotes,
-      uses_metaphors: voiceProfile.uses_metaphors,
-      uses_humor: voiceProfile.uses_humor,
-      samples: voiceProfile.samples,
+      profile_name: voiceProfile.profile_name || '',
+      tone: voiceProfile.tone || [],
+      formality: voiceProfile.formality || 3,
+      detail_level: voiceProfile.detail_level || 3,
+      sentence_style: voiceProfile.sentence_style || SentenceStyle.Mixed,
+      vocabulary_level: voiceProfile.vocabulary_level || VocabularyLevel.Professional,
+      common_phrases: voiceProfile.common_phrases || [],
+      avoid_phrases: voiceProfile.avoid_phrases || [],
+      uses_questions: voiceProfile.uses_questions ?? false,
+      uses_data: voiceProfile.uses_data ?? false,
+      uses_anecdotes: voiceProfile.uses_anecdotes ?? false,
+      uses_metaphors: voiceProfile.uses_metaphors ?? false,
+      uses_humor: voiceProfile.uses_humor ?? false,
+      paragraph_pattern: voiceProfile.paragraph_pattern || ParagraphPattern.Varied,
+      samples: voiceProfile.samples || [],
     },
     callback_url: CALLBACK_URL,
   };
+
+  console.log('Sending payload to n8n:', JSON.stringify(payload, null, 2));
 
   const response = await fetch(N8N_WEBHOOK_URL, {
     method: 'POST',
@@ -60,12 +68,16 @@ export async function triggerNewsletterGeneration({
     body: JSON.stringify(payload),
   });
 
+  console.log('n8n response status:', response.status);
+
   if (!response.ok) {
     const errorText = await response.text();
+    console.error('n8n webhook error:', errorText);
     throw new Error(`n8n webhook failed: ${response.status} - ${errorText}`);
   }
 
   const data = await response.json();
+  console.log('n8n response data:', data);
   return data as N8nWebhookResponse;
 }
 

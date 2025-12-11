@@ -270,6 +270,7 @@ export interface N8nWebhookPayload {
     uses_anecdotes: boolean;
     uses_metaphors: boolean;
     uses_humor: boolean;
+    paragraph_pattern: ParagraphPattern;
     samples: WritingSample[];
   };
 

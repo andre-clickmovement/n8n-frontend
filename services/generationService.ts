@@ -230,11 +230,15 @@ export async function startGeneration(
 
   try {
     // Fetch the voice profile data
+    console.log('Fetching voice profile:', request.profile_id);
     const voiceProfile = await getVoiceProfile(request.profile_id);
+    console.log('Voice profile fetched:', voiceProfile ? 'found' : 'not found');
+
     if (!voiceProfile) {
       throw new Error('Voice profile not found');
     }
 
+    console.log('Triggering n8n workflow...');
     // Trigger the n8n workflow with voice profile data
     const response = await triggerNewsletterGeneration({
       userId,
