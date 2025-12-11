@@ -3,6 +3,7 @@ import {
   type GenerationRequest,
   type N8nWebhookPayload,
   type N8nWebhookResponse,
+  type VoiceProfile,
 } from '../types';
 
 const N8N_WEBHOOK_URL = import.meta.env.VITE_N8N_WEBHOOK_URL || 'https://levreg.app.n8n.cloud/webhook/generate-newsletter';
@@ -13,6 +14,7 @@ export interface TriggerGenerationParams {
   profileId: string;
   generationId: string;
   request: GenerationRequest;
+  voiceProfile: VoiceProfile;
 }
 
 export async function triggerNewsletterGeneration({
@@ -20,6 +22,7 @@ export async function triggerNewsletterGeneration({
   profileId,
   generationId,
   request,
+  voiceProfile,
 }: TriggerGenerationParams): Promise<N8nWebhookResponse> {
   const payload: N8nWebhookPayload = {
     user_id: userId,
@@ -30,6 +33,22 @@ export async function triggerNewsletterGeneration({
     twitter_username: request.content_source === ContentSource.Twitter ? request.twitter_username || null : null,
     youtube_url: request.content_source === ContentSource.YouTube ? request.youtube_url || null : null,
     article_content: request.content_source === ContentSource.Article ? request.article_content || null : null,
+    voice_profile: {
+      profile_name: voiceProfile.profile_name,
+      tone: voiceProfile.tone,
+      formality: voiceProfile.formality,
+      detail_level: voiceProfile.detail_level,
+      sentence_style: voiceProfile.sentence_style,
+      vocabulary_level: voiceProfile.vocabulary_level,
+      common_phrases: voiceProfile.common_phrases,
+      avoid_phrases: voiceProfile.avoid_phrases,
+      uses_questions: voiceProfile.uses_questions,
+      uses_data: voiceProfile.uses_data,
+      uses_anecdotes: voiceProfile.uses_anecdotes,
+      uses_metaphors: voiceProfile.uses_metaphors,
+      uses_humor: voiceProfile.uses_humor,
+      samples: voiceProfile.samples,
+    },
     callback_url: CALLBACK_URL,
   };
 

@@ -1,5 +1,6 @@
 import { supabase, TABLES } from '../lib/supabase';
 import { triggerNewsletterGeneration } from './n8nService';
+import { getVoiceProfile } from './voiceProfileService';
 import type {
   Generation,
   GenerationRequest,
@@ -228,12 +229,19 @@ export async function startGeneration(
   }
 
   try {
-    // Trigger the n8n workflow
+    // Fetch the voice profile data
+    const voiceProfile = await getVoiceProfile(request.profile_id);
+    if (!voiceProfile) {
+      throw new Error('Voice profile not found');
+    }
+
+    // Trigger the n8n workflow with voice profile data
     const response = await triggerNewsletterGeneration({
       userId,
       profileId: request.profile_id,
       generationId: generation.id,
       request,
+      voiceProfile,
     });
 
     // Update generation with execution ID and set to processing

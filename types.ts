@@ -243,14 +243,36 @@ export interface Generation {
 // -------------------- n8n Webhook Types --------------------
 
 export interface N8nWebhookPayload {
+  // Identifiers
   user_id: string;
   profile_id: string;
   generation_id: string;
+
+  // Content source
   newsletter_name: string;
   content_source: ContentSource;
   twitter_username: string | null;
   youtube_url: string | null;
   article_content: string | null;
+
+  // Voice profile data for AI generation
+  voice_profile: {
+    profile_name: string;
+    tone: ToneOption[];
+    formality: number;
+    detail_level: number;
+    sentence_style: SentenceStyle;
+    vocabulary_level: VocabularyLevel;
+    common_phrases: string[];
+    avoid_phrases: string[];
+    uses_questions: boolean;
+    uses_data: boolean;
+    uses_anecdotes: boolean;
+    uses_metaphors: boolean;
+    uses_humor: boolean;
+    samples: WritingSample[];
+  };
+
   callback_url: string;
 }
 
