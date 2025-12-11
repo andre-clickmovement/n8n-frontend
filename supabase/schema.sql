@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS voice_profiles (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   profile_name TEXT NOT NULL,
-  newsletter_brand TEXT,
+  newsletter_name TEXT,
 
   -- Questionnaire responses
   tone JSONB DEFAULT '[]'::jsonb,

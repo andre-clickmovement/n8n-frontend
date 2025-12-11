@@ -79,16 +79,40 @@ export async function createVoiceProfile(
     return newProfile;
   }
 
+  console.log('Creating voice profile for user:', userId);
+  console.log('Form data:', JSON.stringify(formData, null, 2));
+
+  const insertData = {
+    user_id: userId,
+    profile_name: formData.profile_name,
+    newsletter_name: formData.newsletter_name,
+    tone: formData.tone,
+    formality: formData.formality,
+    detail_level: formData.detail_level,
+    sentence_style: formData.sentence_style,
+    vocabulary_level: formData.vocabulary_level,
+    common_phrases: formData.common_phrases,
+    avoid_phrases: formData.avoid_phrases,
+    uses_questions: formData.uses_questions,
+    uses_data: formData.uses_data,
+    uses_anecdotes: formData.uses_anecdotes,
+    uses_metaphors: formData.uses_metaphors,
+    uses_humor: formData.uses_humor,
+    samples: formData.samples,
+    status: 'draft' as VoiceProfileStatus,
+    total_generations: 0,
+  };
+
+  console.log('Insert data:', JSON.stringify(insertData, null, 2));
+
   const { data, error } = await supabase
     .from(TABLES.VOICE_PROFILES)
-    .insert({
-      user_id: userId,
-      ...formData,
-      status: 'draft' as VoiceProfileStatus,
-      total_generations: 0,
-    })
+    .insert(insertData)
     .select()
     .single();
+
+  console.log('Supabase response - data:', data);
+  console.log('Supabase response - error:', error);
 
   if (error) {
     console.error('Error creating voice profile:', error);
