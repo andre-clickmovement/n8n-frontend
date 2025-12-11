@@ -37,14 +37,21 @@ function AppContent() {
   }, [isAuthenticated, user]);
 
   const loadProfiles = async () => {
-    if (!user) return;
+    console.log('loadProfiles called, user:', user?.id);
+    if (!user) {
+      console.log('No user, skipping loadProfiles');
+      return;
+    }
     setIsLoadingProfiles(true);
     try {
+      console.log('Calling getVoiceProfiles...');
       const data = await getVoiceProfiles(user.id);
+      console.log('Got profiles:', data);
       setProfiles(data);
     } catch (error) {
       console.error('Failed to load profiles:', error);
     } finally {
+      console.log('loadProfiles finished');
       setIsLoadingProfiles(false);
     }
   };

@@ -14,22 +14,34 @@ function generateId(): string {
 }
 
 export async function getVoiceProfiles(userId: string): Promise<VoiceProfile[]> {
+  console.log('getVoiceProfiles called for user:', userId);
+
   if (isDemoMode) {
+    console.log('Demo mode - returning demo profiles');
     return demoProfiles.filter(p => p.user_id === userId);
   }
 
-  const { data, error } = await supabase
-    .from(TABLES.VOICE_PROFILES)
-    .select('*')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false });
+  try {
+    console.log('Fetching profiles from Supabase...');
+    const { data, error } = await supabase
+      .from(TABLES.VOICE_PROFILES)
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
 
-  if (error) {
-    console.error('Error fetching voice profiles:', error);
-    throw error;
+    console.log('Supabase getVoiceProfiles response - data:', data);
+    console.log('Supabase getVoiceProfiles response - error:', error);
+
+    if (error) {
+      console.error('Error fetching voice profiles:', error);
+      throw error;
+    }
+
+    return data as VoiceProfile[];
+  } catch (err) {
+    console.error('Exception in getVoiceProfiles:', err);
+    throw err;
   }
-
-  return data as VoiceProfile[];
 }
 
 export async function getVoiceProfile(profileId: string): Promise<VoiceProfile | null> {
