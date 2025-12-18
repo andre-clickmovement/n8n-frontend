@@ -6,21 +6,27 @@ import { useAuth } from '../contexts/AuthContext';
 export const LandingPage: React.FC = () => {
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signup');
   const [error, setError] = useState<string | null>(null);
-  const { signIn, signUp, isLoading } = useAuth();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { signIn, signUp } = useAuth();
 
   const handleAuthSubmit = async (data: { email: string; password: string; fullName?: string }) => {
     setError(null);
+    setIsSubmitting(true);
 
-    if (authMode === 'signup') {
-      const { error } = await signUp(data.email, data.password, data.fullName || '');
-      if (error) {
-        setError(error.message);
+    try {
+      if (authMode === 'signup') {
+        const { error } = await signUp(data.email, data.password, data.fullName || '');
+        if (error) {
+          setError(error.message);
+        }
+      } else {
+        const { error } = await signIn(data.email, data.password);
+        if (error) {
+          setError(error.message);
+        }
       }
-    } else {
-      const { error } = await signIn(data.email, data.password);
-      if (error) {
-        setError(error.message);
-      }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -103,7 +109,7 @@ export const LandingPage: React.FC = () => {
             mode={authMode}
             onSubmit={handleAuthSubmit}
             onToggleMode={() => setAuthMode(authMode === 'signup' ? 'signin' : 'signup')}
-            isLoading={isLoading}
+            isLoading={isSubmitting}
             error={error}
           />
 
