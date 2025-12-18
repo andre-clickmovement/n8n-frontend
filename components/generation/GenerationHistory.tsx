@@ -71,6 +71,55 @@ const ContentSourceIcon: React.FC<{ type: string }> = ({ type }) => {
   }
 };
 
+interface NewsletterCardProps {
+  newsletter: NewsletterArticle;
+  index: number;
+}
+
+const NewsletterCard: React.FC<NewsletterCardProps> = ({ newsletter, index }) => {
+  const [isContentExpanded, setIsContentExpanded] = React.useState(false);
+
+  return (
+    <div className="p-4 hover:bg-slate-50 transition-colors">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">
+              #{newsletter.idea_number || index + 1}
+            </span>
+            <span className="text-xs text-slate-400">
+              {newsletter.word_count} words
+            </span>
+          </div>
+          <h4 className="font-medium text-slate-900 mb-1">{newsletter.title}</h4>
+          <p className="text-sm text-slate-500 mb-2">
+            <span className="font-medium">Subject:</span> {newsletter.subject_line}
+          </p>
+          <p className="text-sm text-slate-400 italic">
+            {newsletter.preview_text}
+          </p>
+        </div>
+        <button
+          onClick={() => setIsContentExpanded(!isContentExpanded)}
+          className="px-3 py-1.5 rounded-lg text-sm font-medium bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors"
+        >
+          {isContentExpanded ? 'Hide Content' : 'View Content'}
+        </button>
+      </div>
+
+      {isContentExpanded && (
+        <div className="mt-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
+          <div className="prose prose-sm max-w-none prose-slate">
+            <pre className="whitespace-pre-wrap text-sm text-slate-700 font-sans overflow-x-auto">
+              {newsletter.markdown_content || newsletter.content}
+            </pre>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 interface GenerationCardProps {
   generation: Generation;
   onViewDetails: (generation: Generation) => void;
@@ -174,34 +223,7 @@ const GenerationCard: React.FC<GenerationCardProps> = ({ generation, onViewDetai
           {isExpanded && (
             <div className="border-t border-slate-100 divide-y divide-slate-100">
               {generation.newsletters.map((newsletter, index) => (
-                <div key={index} className="p-4 hover:bg-slate-50 transition-colors">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">
-                          #{newsletter.newsletter_number}
-                        </span>
-                        <span className="text-xs text-slate-400">
-                          {newsletter.word_count} words
-                        </span>
-                      </div>
-                      <h4 className="font-medium text-slate-900 mb-1">{newsletter.title}</h4>
-                      <p className="text-sm text-slate-500 line-clamp-1">
-                        {newsletter.subject_line}
-                      </p>
-                    </div>
-                    {newsletter.google_drive_url && (
-                      <a
-                        href={newsletter.google_drive_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="p-2 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
-                      >
-                        <ExternalLink size={18} />
-                      </a>
-                    )}
-                  </div>
-                </div>
+                <NewsletterCard key={index} newsletter={newsletter} index={index} />
               ))}
             </div>
           )}

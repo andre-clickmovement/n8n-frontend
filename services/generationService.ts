@@ -248,28 +248,37 @@ export async function startGeneration(
       voiceProfile,
     });
 
-    // Update generation with execution ID and set to processing
+    console.log('n8n response received:', response);
+
+    // Check if the response indicates success and contains newsletters
+    const isCompleted = response.success && response.status === 'completed' && response.newsletters?.length > 0;
+
+    // Update generation with results
     const { data: updatedGeneration, error: updateError } = await supabase
       .from(TABLES.GENERATIONS)
       .update({
-        status: 'processing' as GenerationStatus,
+        status: isCompleted ? ('completed' as GenerationStatus) : ('processing' as GenerationStatus),
         n8n_execution_id: response.execution_id,
         started_at: new Date().toISOString(),
+        completed_at: isCompleted ? new Date().toISOString() : null,
+        newsletters: isCompleted ? response.newsletters : null,
+        word_count_total: isCompleted ? response.total_words : null,
       })
       .eq('id', generation.id)
       .select()
       .single();
 
     if (updateError) {
-      console.error('Error updating generation with execution ID:', updateError);
+      console.error('Error updating generation with results:', updateError);
       throw updateError;
     }
 
-    // Update voice profile last_used_at
+    // Update voice profile last_used_at and increment total_generations
     await supabase
       .from(TABLES.VOICE_PROFILES)
       .update({
         last_used_at: new Date().toISOString(),
+        total_generations: voiceProfile.total_generations + 1,
       })
       .eq('id', request.profile_id);
 

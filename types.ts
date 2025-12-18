@@ -180,18 +180,17 @@ export interface GenerationRequest {
 // -------------------- Newsletter Output --------------------
 
 export interface NewsletterArticle {
-  newsletter_number: number;
+  idea_number: number;
   title: string;
   subject_line: string;
   preview_text: string;
-  content_markdown: string;
-  content_html?: string;
+  content: string;
+  markdown_content: string;
   word_count: number;
   source_type: string;
-  newsletter_type: string;
-  google_drive_url?: string;
-  google_drive_file_id?: string;
-  generated_at: string;
+  newsletter_name: string;
+  filename: string;
+  created_at: string;
 }
 
 // Simplified version for preview (matches current UI)
@@ -278,11 +277,20 @@ export interface N8nWebhookPayload {
 }
 
 export interface N8nWebhookResponse {
+  success: boolean;
+  status: 'completed' | 'failed' | 'pending';
+  generation_id: string;
   execution_id: string;
   user_id: string;
-  status: 'completed' | 'failed' | 'pending';
+  profile_id: string;
   newsletters: NewsletterArticle[];
-  google_drive_folder: string;
+  total_count: number;
+  total_words: number;
+  average_words: number;
+  newsletter_name: string;
+  source: string;
+  voice_profile_name: string;
+  created_at: string;
   completed_at: string;
 }
 
