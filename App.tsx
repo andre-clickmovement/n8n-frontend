@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { LandingPage } from './components/LandingPage';
 import { DashboardLayout } from './components/dashboard/DashboardLayout';
@@ -10,6 +10,65 @@ import { getVoiceProfiles, createVoiceProfile, deleteVoiceProfile } from './serv
 import { getGenerations, startGeneration } from './services/generationService';
 import type { AppView, VoiceProfile, VoiceProfileFormData, Generation, GenerationRequest } from './types';
 import { Loader2 } from 'lucide-react';
+
+// History view with auto-polling for processing generations
+interface HistoryViewProps {
+  generations: Generation[];
+  isLoading: boolean;
+  onRefresh: () => Promise<void>;
+}
+
+function HistoryView({ generations, isLoading, onRefresh }: HistoryViewProps) {
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Auto-poll when there are processing generations
+  useEffect(() => {
+    const hasProcessing = generations.some(g => g.status === 'processing' || g.status === 'pending');
+
+    if (hasProcessing && !pollIntervalRef.current) {
+      pollIntervalRef.current = setInterval(() => {
+        onRefresh();
+      }, 3000);
+    } else if (!hasProcessing && pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
+
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+    };
+  }, [generations, onRefresh]);
+
+  return (
+    <div className="space-y-8">
+      <header className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl md:text-4xl font-bold text-slate-900 mb-2">
+            Generation History
+          </h1>
+          <p className="text-lg text-slate-500">
+            View your past newsletter generations.
+          </p>
+        </div>
+        <button
+          onClick={onRefresh}
+          className="px-4 py-2 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors text-sm font-medium"
+        >
+          Refresh
+        </button>
+      </header>
+
+      <GenerationHistory
+        generations={generations}
+        isLoading={isLoading}
+        onViewDetails={(gen) => console.log('View details:', gen)}
+      />
+    </div>
+  );
+}
 
 // Main App Content (uses auth context)
 function AppContent() {
@@ -211,30 +270,11 @@ function AppContent() {
 
       case 'history':
         return (
-          <div className="space-y-8">
-            <header className="flex items-center justify-between">
-              <div>
-                <h1 className="text-3xl md:text-4xl font-bold text-slate-900 mb-2">
-                  Generation History
-                </h1>
-                <p className="text-lg text-slate-500">
-                  View your past newsletter generations.
-                </p>
-              </div>
-              <button
-                onClick={loadGenerations}
-                className="px-4 py-2 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors text-sm font-medium"
-              >
-                Refresh
-              </button>
-            </header>
-
-            <GenerationHistory
-              generations={generations}
-              isLoading={isLoadingGenerations}
-              onViewDetails={(gen) => console.log('View details:', gen)}
-            />
-          </div>
+          <HistoryView
+            generations={generations}
+            isLoading={isLoadingGenerations}
+            onRefresh={loadGenerations}
+          />
         );
 
       case 'settings':
