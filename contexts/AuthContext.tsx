@@ -83,24 +83,61 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    // Get initial session
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      setSession(session);
-      if (session?.user) {
-        const profile = await fetchUserProfile(session.user.id);
-        setUser(profile);
+    let isMounted = true;
+
+    // Safety timeout - never stay loading forever
+    const timeout = setTimeout(() => {
+      if (isMounted) {
+        console.warn('Auth initialization timeout - forcing load complete');
+        setIsLoading(false);
       }
-      setIsLoading(false);
-    });
+    }, 5000);
+
+    // Get initial session
+    const initAuth = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+
+        if (error) {
+          console.error('Error getting session:', error);
+          if (isMounted) setIsLoading(false);
+          return;
+        }
+
+        if (isMounted) {
+          setSession(session);
+          if (session?.user) {
+            try {
+              const profile = await fetchUserProfile(session.user.id);
+              if (isMounted) setUser(profile);
+            } catch (profileError) {
+              console.error('Error fetching profile:', profileError);
+            }
+          }
+          setIsLoading(false);
+        }
+      } catch (err) {
+        console.error('Auth initialization error:', err);
+        if (isMounted) setIsLoading(false);
+      }
+    };
+
+    initAuth();
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        if (!isMounted) return;
+
         setSession(session);
 
         if (session?.user) {
-          const profile = await fetchUserProfile(session.user.id);
-          setUser(profile);
+          try {
+            const profile = await fetchUserProfile(session.user.id);
+            if (isMounted) setUser(profile);
+          } catch (err) {
+            console.error('Error fetching profile on auth change:', err);
+          }
         } else {
           setUser(null);
         }
@@ -110,6 +147,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     );
 
     return () => {
+      isMounted = false;
+      clearTimeout(timeout);
       subscription.unsubscribe();
     };
   }, [fetchUserProfile]);
