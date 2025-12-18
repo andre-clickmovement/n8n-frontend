@@ -108,7 +108,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setSession(session);
           if (session?.user) {
             try {
-              const profile = await fetchUserProfile(session.user.id);
+              let profile = await fetchUserProfile(session.user.id);
+
+              // If profile doesn't exist, create a fallback user object
+              if (!profile) {
+                profile = {
+                  id: session.user.id,
+                  email: session.user.email || '',
+                  full_name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'User',
+                  created_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString(),
+                };
+              }
+
               if (isMounted) setUser(profile);
             } catch (profileError) {
               console.error('Error fetching profile:', profileError);
@@ -133,7 +145,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (session?.user) {
           try {
-            const profile = await fetchUserProfile(session.user.id);
+            let profile = await fetchUserProfile(session.user.id);
+
+            // If profile doesn't exist, create a fallback user object
+            if (!profile && isMounted) {
+              profile = {
+                id: session.user.id,
+                email: session.user.email || '',
+                full_name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'User',
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              };
+            }
+
             if (isMounted) setUser(profile);
           } catch (err) {
             console.error('Error fetching profile on auth change:', err);
@@ -225,7 +249,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (data.session) {
         setSession(data.session);
         if (data.session.user) {
-          const profile = await fetchUserProfile(data.session.user.id);
+          let profile = await fetchUserProfile(data.session.user.id);
+
+          // If profile doesn't exist, create it (handles edge case where signup profile creation failed)
+          if (!profile) {
+            const fullName = data.session.user.user_metadata?.full_name || email.split('@')[0];
+            profile = await createUserProfile(data.session.user.id, email, fullName);
+          }
+
+          // If still no profile, create a fallback user object to allow login
+          if (!profile) {
+            profile = {
+              id: data.session.user.id,
+              email: email,
+              full_name: data.session.user.user_metadata?.full_name || email.split('@')[0],
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            };
+          }
+
           setUser(profile);
         }
       }
@@ -235,7 +277,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.error('Sign in error:', err);
       return { error: err as AuthError };
     }
-  }, [fetchUserProfile]);
+  }, [fetchUserProfile, createUserProfile]);
 
   const signOut = useCallback(async () => {
     setIsLoading(true);
