@@ -158,64 +158,84 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     password: string,
     fullName: string
   ): Promise<{ error: AuthError | null }> => {
-    setIsLoading(true);
-
     if (isDemoMode) {
       // Demo mode: instant sign up
       const demoUser = { ...DEMO_USER, email, full_name: fullName };
       setUser(demoUser);
       setSession({ user: { id: demoUser.id } } as Session);
-      setIsLoading(false);
       return { error: null };
     }
 
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          full_name: fullName,
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: fullName,
+          },
         },
-      },
-    });
+      });
 
-    if (error) {
-      setIsLoading(false);
-      return { error };
+      if (error) {
+        return { error };
+      }
+
+      // Create user profile in our users table
+      if (data.user) {
+        await createUserProfile(data.user.id, email, fullName);
+        // Set user and session manually
+        if (data.session) {
+          setSession(data.session);
+          const profile = await fetchUserProfile(data.user.id);
+          setUser(profile);
+        }
+      }
+
+      return { error: null };
+    } catch (err) {
+      console.error('Sign up error:', err);
+      return { error: err as AuthError };
     }
-
-    // Create user profile in our users table
-    if (data.user) {
-      await createUserProfile(data.user.id, email, fullName);
-    }
-
-    setIsLoading(false);
-    return { error: null };
-  }, [createUserProfile]);
+  }, [createUserProfile, fetchUserProfile]);
 
   const signIn = useCallback(async (
     email: string,
     password: string
   ): Promise<{ error: AuthError | null }> => {
-    setIsLoading(true);
-
     if (isDemoMode) {
       // Demo mode: instant sign in
       const demoUser = { ...DEMO_USER, email };
       setUser(demoUser);
       setSession({ user: { id: demoUser.id } } as Session);
-      setIsLoading(false);
       return { error: null };
     }
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-    setIsLoading(false);
-    return { error };
-  }, []);
+      if (error) {
+        return { error };
+      }
+
+      // Manually set session and fetch profile if onAuthStateChange hasn't fired yet
+      if (data.session) {
+        setSession(data.session);
+        if (data.session.user) {
+          const profile = await fetchUserProfile(data.session.user.id);
+          setUser(profile);
+        }
+      }
+
+      return { error: null };
+    } catch (err) {
+      console.error('Sign in error:', err);
+      return { error: err as AuthError };
+    }
+  }, [fetchUserProfile]);
 
   const signOut = useCallback(async () => {
     setIsLoading(true);
