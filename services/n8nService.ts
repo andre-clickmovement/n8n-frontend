@@ -10,7 +10,7 @@ import {
 } from '../types';
 
 const N8N_WEBHOOK_URL = import.meta.env.VITE_N8N_WEBHOOK_URL || 'https://levreg.app.n8n.cloud/webhook/levreg-ai-n8n';
-const CALLBACK_URL = import.meta.env.VITE_CALLBACK_URL || window.location.origin + '/api/webhooks/n8n';
+const CALLBACK_URL = import.meta.env.VITE_CALLBACK_URL || 'https://n8n-frontend-orpin.vercel.app/api/webhook';
 
 export interface TriggerGenerationParams {
   userId: string;
