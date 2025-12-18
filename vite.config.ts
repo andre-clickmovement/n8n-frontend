@@ -14,7 +14,7 @@ export default defineConfig(({ mode }) => {
       // Environment variables exposed to the app
       'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(env.VITE_SUPABASE_URL),
       'import.meta.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(env.VITE_SUPABASE_ANON_KEY),
-      'import.meta.env.VITE_N8N_WEBHOOK_URL': JSON.stringify(env.VITE_N8N_WEBHOOK_URL || 'https://levreg.app.n8n.cloud/webhook/generate-newsletter'),
+      'import.meta.env.VITE_N8N_WEBHOOK_URL': JSON.stringify(env.VITE_N8N_WEBHOOK_URL || 'https://levreg.app.n8n.cloud/webhook/levreg-ai-n8n'),
     },
     resolve: {
       alias: {
