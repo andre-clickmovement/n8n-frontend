@@ -236,39 +236,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
+      console.log('SignIn: Starting sign in...');
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
       if (error) {
+        console.error('SignIn: Auth error:', error);
         return { error };
       }
+
+      console.log('SignIn: Auth successful, session:', !!data.session);
 
       // Manually set session and fetch profile if onAuthStateChange hasn't fired yet
       if (data.session) {
         setSession(data.session);
+        console.log('SignIn: Session set');
+
         if (data.session.user) {
-          let profile = await fetchUserProfile(data.session.user.id);
+          // Create a fallback user object immediately to ensure login works
+          const fallbackProfile: User = {
+            id: data.session.user.id,
+            email: email,
+            full_name: data.session.user.user_metadata?.full_name || email.split('@')[0],
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          };
 
-          // If profile doesn't exist, create it (handles edge case where signup profile creation failed)
-          if (!profile) {
-            const fullName = data.session.user.user_metadata?.full_name || email.split('@')[0];
-            profile = await createUserProfile(data.session.user.id, email, fullName);
-          }
+          // Set fallback immediately so user can proceed
+          setUser(fallbackProfile);
+          console.log('SignIn: Fallback user set');
 
-          // If still no profile, create a fallback user object to allow login
-          if (!profile) {
-            profile = {
-              id: data.session.user.id,
-              email: email,
-              full_name: data.session.user.user_metadata?.full_name || email.split('@')[0],
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-            };
-          }
-
-          setUser(profile);
+          // Then try to fetch the real profile in background (non-blocking)
+          fetchUserProfile(data.session.user.id).then(profile => {
+            if (profile) {
+              setUser(profile);
+              console.log('SignIn: Real profile loaded');
+            }
+          }).catch(err => {
+            console.warn('SignIn: Could not fetch profile, using fallback:', err);
+          });
         }
       }
 
@@ -277,7 +285,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.error('Sign in error:', err);
       return { error: err as AuthError };
     }
-  }, [fetchUserProfile, createUserProfile]);
+  }, [fetchUserProfile]);
 
   const signOut = useCallback(async () => {
     setIsLoading(true);
