@@ -20,18 +20,35 @@ interface HistoryViewProps {
 
 function HistoryView({ generations, isLoading, onRefresh }: HistoryViewProps) {
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const isPollingRef = useRef(false);
 
   // Auto-poll when there are processing generations
   useEffect(() => {
     const hasProcessing = generations.some(g => g.status === 'processing' || g.status === 'pending');
 
-    if (hasProcessing && !pollIntervalRef.current) {
-      pollIntervalRef.current = setInterval(() => {
-        onRefresh();
-      }, 3000);
-    } else if (!hasProcessing && pollIntervalRef.current) {
+    // Clear existing interval first
+    if (pollIntervalRef.current) {
       clearInterval(pollIntervalRef.current);
       pollIntervalRef.current = null;
+    }
+
+    if (hasProcessing) {
+      console.log('HistoryView: Starting poll - has processing generations');
+      pollIntervalRef.current = setInterval(async () => {
+        // Prevent overlapping refreshes
+        if (isPollingRef.current) {
+          console.log('HistoryView: Skipping refresh - already in progress');
+          return;
+        }
+        isPollingRef.current = true;
+        try {
+          await onRefresh();
+        } finally {
+          isPollingRef.current = false;
+        }
+      }, 5000); // Increased to 5 seconds
+    } else {
+      console.log('HistoryView: No processing generations - polling stopped');
     }
 
     return () => {
@@ -40,7 +57,8 @@ function HistoryView({ generations, isLoading, onRefresh }: HistoryViewProps) {
         pollIntervalRef.current = null;
       }
     };
-  }, [generations, onRefresh]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [generations.map(g => `${g.id}:${g.status}`).join(',')]);
 
   return (
     <div className="space-y-8">
@@ -155,20 +173,7 @@ function AppContent() {
       const { generation } = await startGeneration(user.id, request);
       setGenerations((prev) => [generation, ...prev]);
       setCurrentView('history');
-
-      // Start polling for status updates
-      // In a real app, you might use WebSockets or Server-Sent Events
-      const pollInterval = setInterval(async () => {
-        const updated = await getGenerations(user.id);
-        setGenerations(updated);
-        const current = updated.find((g) => g.id === generation.id);
-        if (current?.status === 'completed' || current?.status === 'failed') {
-          clearInterval(pollInterval);
-        }
-      }, 5000);
-
-      // Clear interval after 10 minutes max
-      setTimeout(() => clearInterval(pollInterval), 600000);
+      // HistoryView will auto-poll for status updates when there are processing generations
     } catch (error) {
       console.error('Failed to start generation:', error);
       throw error;
