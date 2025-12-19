@@ -80,16 +80,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       updateData.error_message = payload.error_message || 'Unknown error';
     }
 
-    const { error: updateError } = await supabase
+    console.log('Updating generation with data:', JSON.stringify(updateData, null, 2));
+    console.log('Using Supabase URL:', supabaseUrl ? 'Set' : 'NOT SET');
+    console.log('Using Service Key:', supabaseServiceKey ? 'Set (length: ' + supabaseServiceKey.length + ')' : 'NOT SET');
+
+    const { data: updateResult, error: updateError } = await supabase
       .from('generations')
       .update(updateData)
-      .eq('id', payload.generation_id);
+      .eq('id', payload.generation_id)
+      .select();
 
     if (updateError) {
       console.error('Error updating generation:', updateError);
       return res.status(500).json({ error: 'Failed to update generation', details: updateError });
     }
 
+    console.log('Update result:', JSON.stringify(updateResult, null, 2));
     console.log('Generation updated successfully:', payload.generation_id);
 
     return res.status(200).json({
