@@ -112,7 +112,9 @@ function AppContent() {
     if (!user) return;
     setIsLoadingGenerations(true);
     try {
+      console.log('Loading generations for user:', user.id);
       const data = await getGenerations(user.id);
+      console.log('Generations loaded:', data?.length || 0, 'items');
       setGenerations(data);
     } catch (error) {
       console.error('Failed to load generations:', error);

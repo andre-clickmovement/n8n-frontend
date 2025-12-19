@@ -101,6 +101,8 @@ export async function getGenerations(userId: string, limit = 20): Promise<Genera
       .slice(0, limit);
   }
 
+  console.log('getGenerations: Fetching for user_id:', userId);
+
   const { data, error } = await supabase
     .from(TABLES.GENERATIONS)
     .select('*')
@@ -109,10 +111,11 @@ export async function getGenerations(userId: string, limit = 20): Promise<Genera
     .limit(limit);
 
   if (error) {
-    console.error('Error fetching generations:', error);
+    console.error('getGenerations: Error fetching generations:', error);
     throw error;
   }
 
+  console.log('getGenerations: Found', data?.length || 0, 'generations');
   return data as Generation[];
 }
 
