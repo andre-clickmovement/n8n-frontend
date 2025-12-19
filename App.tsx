@@ -21,12 +21,19 @@ interface HistoryViewProps {
 function HistoryView({ generations, isLoading, onRefresh }: HistoryViewProps) {
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const isPollingRef = useRef(false);
+  const onRefreshRef = useRef(onRefresh);
+
+  // Keep onRefresh ref updated
+  useEffect(() => {
+    onRefreshRef.current = onRefresh;
+  }, [onRefresh]);
+
+  // Check if there are processing generations
+  const hasProcessing = generations.some(g => g.status === 'processing' || g.status === 'pending');
 
   // Auto-poll when there are processing generations
   useEffect(() => {
-    const hasProcessing = generations.some(g => g.status === 'processing' || g.status === 'pending');
-
-    // Clear existing interval first
+    // Clear existing interval
     if (pollIntervalRef.current) {
       clearInterval(pollIntervalRef.current);
       pollIntervalRef.current = null;
@@ -37,16 +44,15 @@ function HistoryView({ generations, isLoading, onRefresh }: HistoryViewProps) {
       pollIntervalRef.current = setInterval(async () => {
         // Prevent overlapping refreshes
         if (isPollingRef.current) {
-          console.log('HistoryView: Skipping refresh - already in progress');
           return;
         }
         isPollingRef.current = true;
         try {
-          await onRefresh();
+          await onRefreshRef.current();
         } finally {
           isPollingRef.current = false;
         }
-      }, 5000); // Increased to 5 seconds
+      }, 5000);
     } else {
       console.log('HistoryView: No processing generations - polling stopped');
     }
@@ -57,8 +63,7 @@ function HistoryView({ generations, isLoading, onRefresh }: HistoryViewProps) {
         pollIntervalRef.current = null;
       }
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [generations.map(g => `${g.id}:${g.status}`).join(',')]);
+  }, [hasProcessing]);
 
   return (
     <div className="space-y-8">
