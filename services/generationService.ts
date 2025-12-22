@@ -450,6 +450,24 @@ export async function pollGenerationStatus(
   });
 }
 
+// Delete a generation
+export async function deleteGeneration(generationId: string): Promise<void> {
+  if (isDemoMode) {
+    demoGenerations = demoGenerations.filter(g => g.id !== generationId);
+    return;
+  }
+
+  const { error } = await supabase
+    .from(TABLES.GENERATIONS)
+    .delete()
+    .eq('id', generationId);
+
+  if (error) {
+    console.error('Error deleting generation:', error);
+    throw error;
+  }
+}
+
 // Helper function to extract content source value for display
 function getContentSourceValue(request: GenerationRequest): string {
   switch (request.content_source) {

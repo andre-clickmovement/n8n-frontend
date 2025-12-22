@@ -6,8 +6,9 @@ import { VoiceProfilesList } from './components/dashboard/VoiceProfilesList';
 import { VoiceProfileWizard } from './components/voice-profile/VoiceProfileWizard';
 import { GenerationForm } from './components/generation/GenerationForm';
 import { GenerationHistory } from './components/generation/GenerationHistory';
+import { NewsletterOutput } from './components/generation/NewsletterOutput';
 import { getVoiceProfiles, createVoiceProfile, deleteVoiceProfile } from './services/voiceProfileService';
-import { getGenerations, startGeneration } from './services/generationService';
+import { getGenerations, startGeneration, deleteGeneration } from './services/generationService';
 import type { AppView, VoiceProfile, VoiceProfileFormData, Generation, GenerationRequest } from './types';
 import { Loader2 } from 'lucide-react';
 
@@ -16,9 +17,10 @@ interface HistoryViewProps {
   generations: Generation[];
   isLoading: boolean;
   onRefresh: () => Promise<void>;
+  onDelete: (generationId: string) => Promise<void>;
 }
 
-function HistoryView({ generations, isLoading, onRefresh }: HistoryViewProps) {
+function HistoryView({ generations, isLoading, onRefresh, onDelete }: HistoryViewProps) {
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const isPollingRef = useRef(false);
   const onRefreshRef = useRef(onRefresh);
@@ -88,6 +90,7 @@ function HistoryView({ generations, isLoading, onRefresh }: HistoryViewProps) {
         generations={generations}
         isLoading={isLoading}
         onViewDetails={(gen) => console.log('View details:', gen)}
+        onDelete={onDelete}
       />
     </div>
   );
@@ -104,6 +107,7 @@ function AppContent() {
   // Data State
   const [profiles, setProfiles] = useState<VoiceProfile[]>([]);
   const [generations, setGenerations] = useState<Generation[]>([]);
+  const [latestGeneration, setLatestGeneration] = useState<Generation | null>(null);
 
   // Loading States
   const [isLoadingProfiles, setIsLoadingProfiles] = useState(false);
@@ -139,12 +143,32 @@ function AppContent() {
       const data = await getGenerations(user.id);
       console.log('Generations loaded:', data?.length || 0, 'items');
       setGenerations(data);
+
+      // Update latestGeneration if it exists in the fresh data
+      if (latestGeneration) {
+        const updated = data.find(g => g.id === latestGeneration.id);
+        if (updated && updated.status !== latestGeneration.status) {
+          setLatestGeneration(updated);
+        }
+      }
     } catch (error) {
       console.error('Failed to load generations:', error);
     } finally {
       setIsLoadingGenerations(false);
     }
   };
+
+  // Poll for latest generation status when processing
+  useEffect(() => {
+    if (!latestGeneration) return;
+    if (latestGeneration.status !== 'processing' && latestGeneration.status !== 'pending') return;
+
+    const pollInterval = setInterval(() => {
+      loadGenerations();
+    }, 5000);
+
+    return () => clearInterval(pollInterval);
+  }, [latestGeneration?.id, latestGeneration?.status]);
 
   const handleCreateProfile = async (formData: VoiceProfileFormData) => {
     if (!user) return;
@@ -177,8 +201,8 @@ function AppContent() {
     try {
       const { generation } = await startGeneration(user.id, request);
       setGenerations((prev) => [generation, ...prev]);
-      setCurrentView('history');
-      // HistoryView will auto-poll for status updates when there are processing generations
+      setLatestGeneration(generation);
+      // Stay on generate view to show progress/output
     } catch (error) {
       console.error('Failed to start generation:', error);
       throw error;
@@ -187,9 +211,22 @@ function AppContent() {
     }
   };
 
+  const handleDeleteGeneration = async (generationId: string) => {
+    try {
+      await deleteGeneration(generationId);
+      setGenerations((prev) => prev.filter((g) => g.id !== generationId));
+    } catch (error) {
+      console.error('Failed to delete generation:', error);
+    }
+  };
+
   const handleViewChange = (view: AppView) => {
     setCurrentView(view);
     setSelectedProfile(null);
+    // Clear latest generation when navigating away from generate tab
+    if (view !== 'generate') {
+      setLatestGeneration(null);
+    }
   };
 
   const handleSelectProfileForGeneration = (profileId: string) => {
@@ -258,6 +295,10 @@ function AppContent() {
         );
 
       case 'generate':
+        // Check if we have a completed generation to show
+        const completedGeneration = latestGeneration?.status === 'completed' ? latestGeneration : null;
+        const processingGeneration = latestGeneration?.status === 'processing' || latestGeneration?.status === 'pending' ? latestGeneration : null;
+
         return (
           <div className="space-y-8">
             <header>
@@ -269,14 +310,52 @@ function AppContent() {
               </p>
             </header>
 
-            <div className="max-w-3xl">
-              <GenerationForm
-                profiles={profiles}
-                onSubmit={handleGenerate}
-                onCreateProfile={() => setCurrentView('create-profile')}
-                isSubmitting={isSubmitting}
-              />
-            </div>
+            {/* Show processing state */}
+            {processingGeneration && (
+              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center">
+                    <Loader2 className="text-amber-600 animate-spin" size={24} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-slate-900">Generating Newsletters...</h3>
+                    <p className="text-sm text-slate-600">
+                      This may take a few minutes. You can check the History tab for updates.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Show completed output */}
+            {completedGeneration && completedGeneration.newsletters && completedGeneration.newsletters.length > 0 && (
+              <div className="space-y-4">
+                <NewsletterOutput
+                  generation={completedGeneration}
+                  onClose={() => setLatestGeneration(null)}
+                />
+                <div className="flex justify-center">
+                  <button
+                    onClick={() => setLatestGeneration(null)}
+                    className="px-6 py-3 rounded-xl font-medium text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors"
+                  >
+                    Generate New Newsletters
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Show form when no active generation */}
+            {!latestGeneration && (
+              <div className="max-w-3xl">
+                <GenerationForm
+                  profiles={profiles}
+                  onSubmit={handleGenerate}
+                  onCreateProfile={() => setCurrentView('create-profile')}
+                  isSubmitting={isSubmitting}
+                />
+              </div>
+            )}
           </div>
         );
 
@@ -286,6 +365,7 @@ function AppContent() {
             generations={generations}
             isLoading={isLoadingGenerations}
             onRefresh={loadGenerations}
+            onDelete={handleDeleteGeneration}
           />
         );
 

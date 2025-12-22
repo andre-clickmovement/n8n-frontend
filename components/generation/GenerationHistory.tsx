@@ -11,6 +11,7 @@ import {
   ChevronDown,
   ChevronUp,
   FolderOpen,
+  Trash2,
 } from 'lucide-react';
 import type { Generation, GenerationStatus, NewsletterArticle } from '../../types';
 
@@ -18,6 +19,7 @@ interface GenerationHistoryProps {
   generations: Generation[];
   isLoading: boolean;
   onViewDetails: (generation: Generation) => void;
+  onDelete?: (generationId: string) => Promise<void>;
 }
 
 const StatusBadge: React.FC<{ status: GenerationStatus }> = ({ status }) => {
@@ -123,10 +125,26 @@ const NewsletterCard: React.FC<NewsletterCardProps> = ({ newsletter, index }) =>
 interface GenerationCardProps {
   generation: Generation;
   onViewDetails: (generation: Generation) => void;
+  onDelete?: (generationId: string) => Promise<void>;
 }
 
-const GenerationCard: React.FC<GenerationCardProps> = ({ generation, onViewDetails }) => {
+const GenerationCard: React.FC<GenerationCardProps> = ({ generation, onViewDetails, onDelete }) => {
   const [isExpanded, setIsExpanded] = React.useState(false);
+  const [isDeleting, setIsDeleting] = React.useState(false);
+
+  const handleDelete = async () => {
+    if (!onDelete) return;
+    if (!confirm('Are you sure you want to delete this generation?')) return;
+
+    setIsDeleting(true);
+    try {
+      await onDelete(generation.id);
+    } catch (error) {
+      console.error('Failed to delete generation:', error);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -164,18 +182,34 @@ const GenerationCard: React.FC<GenerationCardProps> = ({ generation, onViewDetai
             </div>
           </div>
 
-          {generation.status === 'completed' && generation.google_drive_folder && (
-            <a
-              href={generation.google_drive_folder}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-50 text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 transition-colors text-sm font-medium"
-            >
-              <FolderOpen size={16} />
-              Google Drive
-              <ExternalLink size={14} />
-            </a>
-          )}
+          <div className="flex items-center gap-2">
+            {generation.status === 'completed' && generation.google_drive_folder && (
+              <a
+                href={generation.google_drive_folder}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-50 text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 transition-colors text-sm font-medium"
+              >
+                <FolderOpen size={16} />
+                Google Drive
+                <ExternalLink size={14} />
+              </a>
+            )}
+            {onDelete && (
+              <button
+                onClick={handleDelete}
+                disabled={isDeleting}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-50 text-slate-500 hover:bg-red-50 hover:text-red-600 transition-colors text-sm font-medium disabled:opacity-50"
+                title="Delete generation"
+              >
+                {isDeleting ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : (
+                  <Trash2 size={16} />
+                )}
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Stats Row */}
@@ -237,6 +271,7 @@ export const GenerationHistory: React.FC<GenerationHistoryProps> = ({
   generations,
   isLoading,
   onViewDetails,
+  onDelete,
 }) => {
   if (isLoading) {
     return (
@@ -277,6 +312,7 @@ export const GenerationHistory: React.FC<GenerationHistoryProps> = ({
           key={generation.id}
           generation={generation}
           onViewDetails={onViewDetails}
+          onDelete={onDelete}
         />
       ))}
     </div>
