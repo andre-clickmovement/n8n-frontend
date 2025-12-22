@@ -217,11 +217,13 @@ function AppContent() {
   };
 
   const handleDeleteGeneration = async (generationId: string) => {
+    if (!user) return;
+
     // Immediately add to deleted set so it disappears from UI
     setDeletedGenerationIds(prev => new Set(prev).add(generationId));
 
     try {
-      await deleteGeneration(generationId);
+      await deleteGeneration(generationId, user.id);
       // Also remove from state for cleanup
       setGenerations((prev) => prev.filter((g) => g.id !== generationId));
     } catch (error) {

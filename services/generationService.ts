@@ -450,21 +450,28 @@ export async function pollGenerationStatus(
   });
 }
 
-// Delete a generation
-export async function deleteGeneration(generationId: string): Promise<void> {
+// Delete a generation via API (uses service role key to bypass RLS)
+export async function deleteGeneration(generationId: string, userId: string): Promise<void> {
   if (isDemoMode) {
     demoGenerations = demoGenerations.filter(g => g.id !== generationId);
     return;
   }
 
-  const { error } = await supabase
-    .from(TABLES.GENERATIONS)
-    .delete()
-    .eq('id', generationId);
+  const response = await fetch('/api/delete-generation', {
+    method: 'DELETE',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      generation_id: generationId,
+      user_id: userId,
+    }),
+  });
 
-  if (error) {
+  if (!response.ok) {
+    const error = await response.json();
     console.error('Error deleting generation:', error);
-    throw error;
+    throw new Error(error.message || 'Failed to delete generation');
   }
 }
 
