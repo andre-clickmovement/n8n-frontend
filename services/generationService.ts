@@ -176,26 +176,43 @@ export async function createGeneration(
 
   // Create the generation record
   console.log('createGeneration: Inserting into Supabase...');
-  const { data: generation, error: createError } = await supabase
-    .from(TABLES.GENERATIONS)
-    .insert({
-      user_id: userId,
-      profile_id: request.profile_id,
-      content_type: request.content_source,
-      content_source: getContentSourceValue(request),
-      input_data: request,
-      status: 'pending' as GenerationStatus,
-    })
-    .select()
-    .single();
+  console.log('createGeneration: Insert payload:', {
+    user_id: userId,
+    profile_id: request.profile_id,
+    content_type: request.content_source,
+    content_source: getContentSourceValue(request),
+    status: 'pending',
+  });
 
-  if (createError) {
-    console.error('createGeneration: Error:', createError);
-    throw createError;
+  try {
+    const { data: generation, error: createError } = await supabase
+      .from(TABLES.GENERATIONS)
+      .insert({
+        user_id: userId,
+        profile_id: request.profile_id,
+        content_type: request.content_source,
+        content_source: getContentSourceValue(request),
+        input_data: request,
+        status: 'pending' as GenerationStatus,
+      })
+      .select()
+      .single();
+
+    console.log('createGeneration: Supabase response received');
+    console.log('createGeneration: data:', generation);
+    console.log('createGeneration: error:', createError);
+
+    if (createError) {
+      console.error('createGeneration: Error:', createError);
+      throw createError;
+    }
+
+    console.log('createGeneration: Success, id:', generation?.id);
+    return generation as Generation;
+  } catch (err) {
+    console.error('createGeneration: Caught exception:', err);
+    throw err;
   }
-
-  console.log('createGeneration: Success, id:', generation?.id);
-  return generation as Generation;
 }
 
 export async function startGeneration(
