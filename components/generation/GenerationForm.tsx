@@ -58,10 +58,10 @@ export const GenerationForm: React.FC<GenerationFormProps> = ({
     console.log('GenerationForm: calling onSubmit...');
     try {
       await onSubmit(formData);
-      console.log('GenerationForm: onSubmit completed');
+      console.log('GenerationForm: onSubmit completed successfully');
     } catch (error) {
       console.error('GenerationForm: onSubmit error:', error);
-      throw error;
+      // Don't re-throw - let App.tsx handle the error and reset isSubmitting
     }
   };
 

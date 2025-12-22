@@ -152,7 +152,12 @@ function AppContent() {
       // Update latestGeneration if it exists in the fresh data
       if (latestGeneration) {
         const updated = data.find(g => g.id === latestGeneration.id);
-        if (updated && updated.status !== latestGeneration.status) {
+        if (updated) {
+          console.log('loadGenerations: Updating latestGeneration from poll', {
+            oldStatus: latestGeneration.status,
+            newStatus: updated.status,
+            hasNewsletters: updated.newsletters?.length
+          });
           setLatestGeneration(updated);
         }
       }
@@ -201,17 +206,26 @@ function AppContent() {
   };
 
   const handleGenerate = async (request: GenerationRequest) => {
-    if (!user) return;
+    console.log('handleGenerate: Starting...', { userId: user?.id, request });
+    if (!user) {
+      console.error('handleGenerate: No user!');
+      return;
+    }
     setIsSubmitting(true);
+    console.log('handleGenerate: isSubmitting set to true');
     try {
+      console.log('handleGenerate: Calling startGeneration...');
       const { generation } = await startGeneration(user.id, request);
+      console.log('handleGenerate: startGeneration returned:', generation);
       setGenerations((prev) => [generation, ...prev]);
       setLatestGeneration(generation);
+      console.log('handleGenerate: latestGeneration set');
       // Stay on generate view to show progress/output
     } catch (error) {
-      console.error('Failed to start generation:', error);
-      throw error;
+      console.error('handleGenerate: Error:', error);
+      // Don't re-throw - let the UI reset so user can try again
     } finally {
+      console.log('handleGenerate: Setting isSubmitting to false');
       setIsSubmitting(false);
     }
   };
@@ -317,6 +331,16 @@ function AppContent() {
         const isCompleted = latestGeneration?.status === 'completed' && latestGeneration?.newsletters?.length > 0;
         // Show form if no generation, or if generation failed, or if neither processing nor completed
         const showForm = !latestGeneration || latestGeneration?.status === 'failed' || (!isProcessing && !isCompleted);
+
+        console.log('Generate view state:', {
+          latestGeneration: latestGeneration?.id,
+          status: latestGeneration?.status,
+          hasNewsletters: latestGeneration?.newsletters?.length,
+          isProcessing,
+          isCompleted,
+          showForm,
+          isSubmitting
+        });
 
         return (
           <div className="space-y-8">
