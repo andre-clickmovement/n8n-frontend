@@ -312,9 +312,11 @@ function AppContent() {
         );
 
       case 'generate':
-        // Check if we have a completed generation to show
-        const completedGeneration = latestGeneration?.status === 'completed' ? latestGeneration : null;
-        const processingGeneration = latestGeneration?.status === 'processing' || latestGeneration?.status === 'pending' ? latestGeneration : null;
+        // Check generation status
+        const isProcessing = latestGeneration?.status === 'processing' || latestGeneration?.status === 'pending';
+        const isCompleted = latestGeneration?.status === 'completed' && latestGeneration?.newsletters?.length > 0;
+        // Show form if no generation, or if generation failed, or if neither processing nor completed
+        const showForm = !latestGeneration || latestGeneration?.status === 'failed' || (!isProcessing && !isCompleted);
 
         return (
           <div className="space-y-8">
@@ -328,7 +330,7 @@ function AppContent() {
             </header>
 
             {/* Show processing state */}
-            {processingGeneration && (
+            {isProcessing && (
               <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6">
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center">
@@ -345,10 +347,10 @@ function AppContent() {
             )}
 
             {/* Show completed output */}
-            {completedGeneration && completedGeneration.newsletters && completedGeneration.newsletters.length > 0 && (
+            {isCompleted && latestGeneration && (
               <div className="space-y-4">
                 <NewsletterOutput
-                  generation={completedGeneration}
+                  generation={latestGeneration}
                   onClose={() => setLatestGeneration(null)}
                 />
                 <div className="flex justify-center">
@@ -362,8 +364,8 @@ function AppContent() {
               </div>
             )}
 
-            {/* Show form when no active generation */}
-            {!latestGeneration && (
+            {/* Show form when no active generation or failed */}
+            {showForm && (
               <div className="max-w-3xl">
                 <GenerationForm
                   profiles={profiles}
