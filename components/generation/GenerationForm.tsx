@@ -44,15 +44,25 @@ export const GenerationForm: React.FC<GenerationFormProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('GenerationForm: handleSubmit called');
+    console.log('GenerationForm: formData:', formData);
     setErrors([]);
 
     const validationErrors = validateGenerationRequest(formData);
+    console.log('GenerationForm: validationErrors:', validationErrors);
     if (validationErrors.length > 0) {
       setErrors(validationErrors);
       return;
     }
 
-    await onSubmit(formData);
+    console.log('GenerationForm: calling onSubmit...');
+    try {
+      await onSubmit(formData);
+      console.log('GenerationForm: onSubmit completed');
+    } catch (error) {
+      console.error('GenerationForm: onSubmit error:', error);
+      throw error;
+    }
   };
 
   const updateFormData = <K extends keyof GenerationRequest>(
