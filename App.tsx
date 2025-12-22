@@ -144,20 +144,31 @@ function AppContent() {
     if (!user) return;
     setIsLoadingGenerations(true);
     try {
-      console.log('Loading generations for user:', user.id);
       const data = await getGenerations(user.id);
-      console.log('Generations loaded:', data?.length || 0, 'items');
       setGenerations(data);
+
+      // Log the status of the latest generation we're tracking (if any)
+      if (latestGeneration) {
+        const tracked = data.find(g => g.id === latestGeneration.id);
+        if (tracked) {
+          console.log('Poll: Generation', tracked.id.slice(0, 8), 'status:', tracked.status, 'newsletters:', tracked.newsletters?.length || 0);
+        }
+      }
 
       // Update latestGeneration if it exists in the fresh data
       if (latestGeneration) {
         const updated = data.find(g => g.id === latestGeneration.id);
         if (updated) {
-          console.log('loadGenerations: Updating latestGeneration from poll', {
-            oldStatus: latestGeneration.status,
-            newStatus: updated.status,
-            hasNewsletters: updated.newsletters?.length
-          });
+          // Only log and update if something changed
+          if (updated.status !== latestGeneration.status ||
+              updated.newsletters?.length !== latestGeneration.newsletters?.length) {
+            console.log('loadGenerations: Status changed!', {
+              oldStatus: latestGeneration.status,
+              newStatus: updated.status,
+              oldNewsletters: latestGeneration.newsletters?.length,
+              newNewsletters: updated.newsletters?.length
+            });
+          }
           setLatestGeneration(updated);
         }
       }
