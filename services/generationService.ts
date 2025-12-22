@@ -145,9 +145,11 @@ export async function createGeneration(
   userId: string,
   request: GenerationRequest
 ): Promise<Generation> {
+  console.log('createGeneration: Starting...', { userId, isDemoMode });
   const now = new Date().toISOString();
 
   if (isDemoMode) {
+    console.log('createGeneration: Running in demo mode');
     const generation: Generation = {
       id: generateId(),
       user_id: userId,
@@ -173,6 +175,7 @@ export async function createGeneration(
   }
 
   // Create the generation record
+  console.log('createGeneration: Inserting into Supabase...');
   const { data: generation, error: createError } = await supabase
     .from(TABLES.GENERATIONS)
     .insert({
@@ -187,10 +190,11 @@ export async function createGeneration(
     .single();
 
   if (createError) {
-    console.error('Error creating generation:', createError);
+    console.error('createGeneration: Error:', createError);
     throw createError;
   }
 
+  console.log('createGeneration: Success, id:', generation?.id);
   return generation as Generation;
 }
 
@@ -198,8 +202,12 @@ export async function startGeneration(
   userId: string,
   request: GenerationRequest
 ): Promise<{ generation: Generation; executionId: string }> {
+  console.log('startGeneration: Starting...', { userId, profileId: request.profile_id });
+
   // Create the generation record
+  console.log('startGeneration: Creating generation record...');
   const generation = await createGeneration(userId, request);
+  console.log('startGeneration: Generation record created:', generation.id);
 
   if (isDemoMode) {
     // In demo mode, simulate the generation process
