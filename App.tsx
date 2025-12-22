@@ -18,12 +18,16 @@ interface HistoryViewProps {
   isLoading: boolean;
   onRefresh: () => Promise<void>;
   onDelete: (generationId: string) => Promise<void>;
+  deletedIds: Set<string>;
 }
 
-function HistoryView({ generations, isLoading, onRefresh, onDelete }: HistoryViewProps) {
+function HistoryView({ generations, isLoading, onRefresh, onDelete, deletedIds }: HistoryViewProps) {
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const isPollingRef = useRef(false);
   const onRefreshRef = useRef(onRefresh);
+
+  // Filter out deleted generations
+  const filteredGenerations = generations.filter(g => !deletedIds.has(g.id));
 
   // Keep onRefresh ref updated
   useEffect(() => {
@@ -31,7 +35,7 @@ function HistoryView({ generations, isLoading, onRefresh, onDelete }: HistoryVie
   }, [onRefresh]);
 
   // Check if there are processing generations
-  const hasProcessing = generations.some(g => g.status === 'processing' || g.status === 'pending');
+  const hasProcessing = filteredGenerations.some(g => g.status === 'processing' || g.status === 'pending');
 
   // Auto-poll when there are processing generations
   useEffect(() => {
@@ -87,7 +91,7 @@ function HistoryView({ generations, isLoading, onRefresh, onDelete }: HistoryVie
       </header>
 
       <GenerationHistory
-        generations={generations}
+        generations={filteredGenerations}
         isLoading={isLoading}
         onViewDetails={(gen) => console.log('View details:', gen)}
         onDelete={onDelete}
@@ -108,6 +112,7 @@ function AppContent() {
   const [profiles, setProfiles] = useState<VoiceProfile[]>([]);
   const [generations, setGenerations] = useState<Generation[]>([]);
   const [latestGeneration, setLatestGeneration] = useState<Generation | null>(null);
+  const [deletedGenerationIds, setDeletedGenerationIds] = useState<Set<string>>(new Set());
 
   // Loading States
   const [isLoadingProfiles, setIsLoadingProfiles] = useState(false);
@@ -212,11 +217,21 @@ function AppContent() {
   };
 
   const handleDeleteGeneration = async (generationId: string) => {
+    // Immediately add to deleted set so it disappears from UI
+    setDeletedGenerationIds(prev => new Set(prev).add(generationId));
+
     try {
       await deleteGeneration(generationId);
+      // Also remove from state for cleanup
       setGenerations((prev) => prev.filter((g) => g.id !== generationId));
     } catch (error) {
       console.error('Failed to delete generation:', error);
+      // If delete failed, remove from deleted set to show it again
+      setDeletedGenerationIds(prev => {
+        const next = new Set(prev);
+        next.delete(generationId);
+        return next;
+      });
     }
   };
 
@@ -366,6 +381,7 @@ function AppContent() {
             isLoading={isLoadingGenerations}
             onRefresh={loadGenerations}
             onDelete={handleDeleteGeneration}
+            deletedIds={deletedGenerationIds}
           />
         );
 
