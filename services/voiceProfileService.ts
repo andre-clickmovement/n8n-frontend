@@ -37,21 +37,86 @@ export async function getVoiceProfile(profileId: string): Promise<VoiceProfile |
     return demoProfiles.find(p => p.id === profileId) || null;
   }
 
-  const { data, error } = await supabase
-    .from(TABLES.VOICE_PROFILES)
-    .select('*')
-    .eq('id', profileId)
-    .single();
+  // Use direct fetch API to avoid Supabase client connection issues
+  console.log('getVoiceProfile: Fetching profile:', profileId);
 
-  if (error) {
-    if (error.code === 'PGRST116') {
-      return null; // Not found
-    }
-    console.error('Error fetching voice profile:', error);
-    throw error;
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseKey) {
+    throw new Error('Supabase configuration missing');
   }
 
-  return data as VoiceProfile;
+  try {
+    // Get the access token directly from localStorage to avoid Supabase client issues
+    const storageKey = `sb-${new URL(supabaseUrl).hostname.split('.')[0]}-auth-token`;
+    const storedSession = localStorage.getItem(storageKey);
+    let accessToken: string | null = null;
+
+    if (storedSession) {
+      try {
+        const parsed = JSON.parse(storedSession);
+        accessToken = parsed.access_token;
+        console.log('getVoiceProfile: Found token in localStorage');
+      } catch {
+        console.error('getVoiceProfile: Failed to parse stored session');
+      }
+    }
+
+    if (!accessToken) {
+      console.log('getVoiceProfile: Falling back to supabase.auth.getSession()...');
+      const { data: sessionData } = await supabase.auth.getSession();
+      accessToken = sessionData.session?.access_token || null;
+    }
+
+    if (!accessToken) {
+      throw new Error('No valid session - please sign in again');
+    }
+
+    console.log('getVoiceProfile: Making request...');
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+    const response = await fetch(
+      `${supabaseUrl}/rest/v1/${TABLES.VOICE_PROFILES}?id=eq.${profileId}&select=*`,
+      {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        signal: controller.signal,
+      }
+    );
+
+    clearTimeout(timeoutId);
+
+    console.log('getVoiceProfile: Response status:', response.status);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('getVoiceProfile: Error response:', errorText);
+      throw new Error(`Supabase fetch failed: ${response.status} - ${errorText}`);
+    }
+
+    const data = await response.json();
+    console.log('getVoiceProfile: Got data, count:', data.length);
+
+    if (!data || data.length === 0) {
+      return null;
+    }
+
+    return data[0] as VoiceProfile;
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      console.error('getVoiceProfile: Request timed out after 30s');
+      throw new Error('Request timed out - please try again');
+    }
+    console.error('getVoiceProfile: Caught exception:', err);
+    throw err;
+  }
 }
 
 export async function createVoiceProfile(

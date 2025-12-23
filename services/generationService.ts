@@ -303,6 +303,66 @@ export async function startGeneration(
     };
   }
 
+  // Helper to get token from localStorage
+  const getAccessToken = async (): Promise<string> => {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const storageKey = `sb-${new URL(supabaseUrl).hostname.split('.')[0]}-auth-token`;
+    const storedSession = localStorage.getItem(storageKey);
+
+    if (storedSession) {
+      try {
+        const parsed = JSON.parse(storedSession);
+        if (parsed.access_token) {
+          return parsed.access_token;
+        }
+      } catch {
+        console.error('Failed to parse stored session');
+      }
+    }
+
+    // Fallback to supabase client (may hang but at least try)
+    const { data: sessionData } = await supabase.auth.getSession();
+    if (sessionData.session?.access_token) {
+      return sessionData.session.access_token;
+    }
+
+    throw new Error('No valid session - please sign in again');
+  };
+
+  // Helper to make direct Supabase REST API calls
+  const directSupabaseUpdate = async (table: string, id: string, updates: Record<string, unknown>): Promise<unknown[]> => {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    const accessToken = await getAccessToken();
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+    const response = await fetch(
+      `${supabaseUrl}/rest/v1/${table}?id=eq.${id}&select=*`,
+      {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${accessToken}`,
+          'Prefer': 'return=representation',
+        },
+        body: JSON.stringify(updates),
+        signal: controller.signal,
+      }
+    );
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Supabase update failed: ${response.status} - ${errorText}`);
+    }
+
+    return response.json();
+  };
+
   try {
     // Fetch the voice profile data
     console.log('Fetching voice profile:', request.profile_id);
@@ -328,48 +388,68 @@ export async function startGeneration(
     // Check if the response indicates success and contains newsletters
     const isCompleted = response.success && response.status === 'completed' && response.newsletters?.length > 0;
 
-    // Update generation with results
-    const { data: updatedGeneration, error: updateError } = await supabase
-      .from(TABLES.GENERATIONS)
-      .update({
-        status: isCompleted ? ('completed' as GenerationStatus) : ('processing' as GenerationStatus),
-        n8n_execution_id: response.execution_id,
-        started_at: new Date().toISOString(),
-        completed_at: isCompleted ? new Date().toISOString() : null,
-        newsletters: isCompleted ? response.newsletters : null,
-        word_count_total: isCompleted ? response.total_words : null,
-      })
-      .eq('id', generation.id)
-      .select()
-      .single();
+    // Update generation with results using direct fetch
+    console.log('Updating generation record...');
+    const updatedData = await directSupabaseUpdate(TABLES.GENERATIONS, generation.id, {
+      status: isCompleted ? 'completed' : 'processing',
+      n8n_execution_id: response.execution_id,
+      started_at: new Date().toISOString(),
+      completed_at: isCompleted ? new Date().toISOString() : null,
+      newsletters: isCompleted ? response.newsletters : null,
+      word_count_total: isCompleted ? response.total_words : null,
+    });
 
-    if (updateError) {
-      console.error('Error updating generation with results:', updateError);
-      throw updateError;
-    }
+    console.log('Generation updated successfully');
 
     // Update voice profile last_used_at and increment total_generations
-    await supabase
-      .from(TABLES.VOICE_PROFILES)
-      .update({
-        last_used_at: new Date().toISOString(),
-        total_generations: voiceProfile.total_generations + 1,
-      })
-      .eq('id', request.profile_id);
+    console.log('Updating voice profile...');
+    await directSupabaseUpdate(TABLES.VOICE_PROFILES, request.profile_id, {
+      last_used_at: new Date().toISOString(),
+      total_generations: voiceProfile.total_generations + 1,
+    });
+    console.log('Voice profile updated');
 
     return {
-      generation: updatedGeneration as Generation,
+      generation: (updatedData as Generation[])[0],
       executionId: response.execution_id,
     };
   } catch (error) {
-    // Mark generation as failed if n8n trigger fails
-    await supabase
-      .from(TABLES.GENERATIONS)
-      .update({
-        status: 'failed' as GenerationStatus,
-        error_message: error instanceof Error ? error.message : 'Unknown error',
-      })
-      .eq('id', generation.id);
+    console.error('startGeneration error:', error);
+    // Mark generation as failed if n8n trigger fails - use direct fetch
+    try {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      const storageKey = `sb-${new URL(supabaseUrl).hostname.split('.')[0]}-auth-token`;
+      const storedSession = localStorage.getItem(storageKey);
+      let accessToken: string | null = null;
+
+      if (storedSession) {
+        try {
+          const parsed = JSON.parse(storedSession);
+          accessToken = parsed.access_token;
+        } catch {}
+      }
+
+      if (accessToken) {
+        await fetch(
+          `${supabaseUrl}/rest/v1/${TABLES.GENERATIONS}?id=eq.${generation.id}`,
+          {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': supabaseKey,
+              'Authorization': `Bearer ${accessToken}`,
+            },
+            body: JSON.stringify({
+              status: 'failed',
+              error_message: error instanceof Error ? error.message : 'Unknown error',
+            }),
+          }
+        );
+      }
+    } catch (updateErr) {
+      console.error('Failed to mark generation as failed:', updateErr);
+    }
 
     throw error;
   }
