@@ -171,57 +171,63 @@ export async function createGeneration(
     return generation;
   }
 
-  // Create the generation record
-  console.log('createGeneration: Inserting into Supabase...');
+  // Create the generation record using fetch API directly to bypass any Supabase client issues
+  console.log('createGeneration: Using direct fetch API...');
+
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseKey) {
+    throw new Error('Supabase configuration missing');
+  }
 
   try {
-    // Check and refresh session before making request
+    // Get the current session token
     const { data: sessionData } = await supabase.auth.getSession();
-    console.log('createGeneration: Session check -', sessionData.session ? 'valid' : 'no session');
+    const accessToken = sessionData.session?.access_token;
 
-    if (!sessionData.session) {
-      // Try to refresh the session
-      const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
-      if (refreshError || !refreshData.session) {
-        throw new Error('No valid session - please sign in again');
-      }
-      console.log('createGeneration: Session refreshed');
+    if (!accessToken) {
+      throw new Error('No valid session - please sign in again');
     }
 
-    // Add timeout to detect hanging requests
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => {
-        reject(new Error('Supabase request timed out after 30s'));
-      }, 30000);
-    });
+    console.log('createGeneration: Got access token, making request...');
 
-    const insertPromise = supabase
-      .from(TABLES.GENERATIONS)
-      .insert({
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+    const response = await fetch(`${supabaseUrl}/rest/v1/${TABLES.GENERATIONS}?select=*`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': supabaseKey,
+        'Authorization': `Bearer ${accessToken}`,
+        'Prefer': 'return=representation',
+      },
+      body: JSON.stringify({
         user_id: userId,
         profile_id: request.profile_id,
         content_type: request.content_source,
         content_source: getContentSourceValue(request),
         input_data: request,
-        status: 'pending' as GenerationStatus,
-      })
-      .select()
-      .single();
+        status: 'pending',
+      }),
+      signal: controller.signal,
+    });
 
-    const { data: generation, error: createError } = await Promise.race([
-      insertPromise,
-      timeoutPromise,
-    ]);
+    clearTimeout(timeoutId);
 
-    console.log('createGeneration: Supabase response received');
+    console.log('createGeneration: Response status:', response.status);
 
-    if (createError) {
-      console.error('createGeneration: Error:', createError);
-      throw createError;
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('createGeneration: Error response:', errorText);
+      throw new Error(`Supabase insert failed: ${response.status} - ${errorText}`);
     }
 
-    console.log('createGeneration: Success, id:', generation?.id);
-    return generation as Generation;
+    const data = await response.json();
+    console.log('createGeneration: Success, id:', data[0]?.id);
+
+    return data[0] as Generation;
   } catch (err) {
     console.error('createGeneration: Caught exception:', err);
     throw err;
