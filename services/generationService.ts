@@ -182,9 +182,27 @@ export async function createGeneration(
   }
 
   try {
-    // Get the current session token
-    const { data: sessionData } = await supabase.auth.getSession();
-    const accessToken = sessionData.session?.access_token;
+    // Get the access token directly from localStorage to avoid Supabase client issues
+    console.log('createGeneration: Getting token from localStorage...');
+    const storageKey = `sb-${new URL(supabaseUrl).hostname.split('.')[0]}-auth-token`;
+    const storedSession = localStorage.getItem(storageKey);
+    let accessToken: string | null = null;
+
+    if (storedSession) {
+      try {
+        const parsed = JSON.parse(storedSession);
+        accessToken = parsed.access_token;
+        console.log('createGeneration: Found token in localStorage');
+      } catch {
+        console.error('createGeneration: Failed to parse stored session');
+      }
+    }
+
+    if (!accessToken) {
+      console.log('createGeneration: Falling back to supabase.auth.getSession()...');
+      const { data: sessionData } = await supabase.auth.getSession();
+      accessToken = sessionData.session?.access_token || null;
+    }
 
     if (!accessToken) {
       throw new Error('No valid session - please sign in again');
