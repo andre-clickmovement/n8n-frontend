@@ -175,6 +175,19 @@ export async function createGeneration(
   console.log('createGeneration: Inserting into Supabase...');
 
   try {
+    // Check and refresh session before making request
+    const { data: sessionData } = await supabase.auth.getSession();
+    console.log('createGeneration: Session check -', sessionData.session ? 'valid' : 'no session');
+
+    if (!sessionData.session) {
+      // Try to refresh the session
+      const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+      if (refreshError || !refreshData.session) {
+        throw new Error('No valid session - please sign in again');
+      }
+      console.log('createGeneration: Session refreshed');
+    }
+
     // Add timeout to detect hanging requests
     const timeoutPromise = new Promise<never>((_, reject) => {
       setTimeout(() => {
