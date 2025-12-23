@@ -173,16 +173,16 @@ export async function createGeneration(
 
   // Create the generation record
   console.log('createGeneration: Inserting into Supabase...');
-  console.log('createGeneration: Insert payload:', {
-    user_id: userId,
-    profile_id: request.profile_id,
-    content_type: request.content_source,
-    content_source: getContentSourceValue(request),
-    status: 'pending',
-  });
 
   try {
-    const { data: generation, error: createError } = await supabase
+    // Add timeout to detect hanging requests
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => {
+        reject(new Error('Supabase request timed out after 30s'));
+      }, 30000);
+    });
+
+    const insertPromise = supabase
       .from(TABLES.GENERATIONS)
       .insert({
         user_id: userId,
@@ -195,9 +195,12 @@ export async function createGeneration(
       .select()
       .single();
 
+    const { data: generation, error: createError } = await Promise.race([
+      insertPromise,
+      timeoutPromise,
+    ]);
+
     console.log('createGeneration: Supabase response received');
-    console.log('createGeneration: data:', generation);
-    console.log('createGeneration: error:', createError);
 
     if (createError) {
       console.error('createGeneration: Error:', createError);
