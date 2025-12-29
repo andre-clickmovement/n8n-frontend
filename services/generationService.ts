@@ -94,6 +94,25 @@ function createDemoNewsletters(contentSource: string): NewsletterArticle[] {
   ];
 }
 
+// Helper to get access token from localStorage
+function getAccessTokenFromStorage(): string | null {
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  if (!supabaseUrl) return null;
+
+  const storageKey = `sb-${new URL(supabaseUrl).hostname.split('.')[0]}-auth-token`;
+  const storedSession = localStorage.getItem(storageKey);
+
+  if (storedSession) {
+    try {
+      const parsed = JSON.parse(storedSession);
+      return parsed.access_token || null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
 export async function getGenerations(userId: string, limit = 20): Promise<Generation[]> {
   if (isDemoMode) {
     return demoGenerations
@@ -101,19 +120,57 @@ export async function getGenerations(userId: string, limit = 20): Promise<Genera
       .slice(0, limit);
   }
 
-  const { data, error } = await supabase
-    .from(TABLES.GENERATIONS)
-    .select('*')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false })
-    .limit(limit);
+  // Use direct fetch API to avoid Supabase client hanging
+  console.log('getGenerations: Fetching for user:', userId);
 
-  if (error) {
-    console.error('getGenerations: Error fetching generations:', error);
-    throw error;
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseKey) {
+    throw new Error('Supabase configuration missing');
   }
 
-  return data as Generation[];
+  const accessToken = getAccessTokenFromStorage();
+  if (!accessToken) {
+    throw new Error('No valid session - please sign in again');
+  }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+  try {
+    const response = await fetch(
+      `${supabaseUrl}/rest/v1/${TABLES.GENERATIONS}?user_id=eq.${userId}&select=*&order=created_at.desc&limit=${limit}`,
+      {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        signal: controller.signal,
+      }
+    );
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('getGenerations: Error response:', errorText);
+      throw new Error(`Supabase fetch failed: ${response.status} - ${errorText}`);
+    }
+
+    const data = await response.json();
+    console.log('getGenerations: Got', data.length, 'generations');
+    return data as Generation[];
+  } catch (err) {
+    clearTimeout(timeoutId);
+    if (err instanceof Error && err.name === 'AbortError') {
+      console.error('getGenerations: Request timed out after 30s');
+      throw new Error('Request timed out - please try again');
+    }
+    throw err;
+  }
 }
 
 export async function getGeneration(generationId: string): Promise<Generation | null> {

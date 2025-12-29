@@ -13,23 +13,81 @@ function generateId(): string {
   return 'demo-' + Math.random().toString(36).substring(2, 15);
 }
 
+// Helper to get access token from localStorage
+function getAccessTokenFromStorage(): string | null {
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  if (!supabaseUrl) return null;
+
+  const storageKey = `sb-${new URL(supabaseUrl).hostname.split('.')[0]}-auth-token`;
+  const storedSession = localStorage.getItem(storageKey);
+
+  if (storedSession) {
+    try {
+      const parsed = JSON.parse(storedSession);
+      return parsed.access_token || null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
 export async function getVoiceProfiles(userId: string): Promise<VoiceProfile[]> {
   if (isDemoMode) {
     return demoProfiles.filter(p => p.user_id === userId);
   }
 
-  const { data, error } = await supabase
-    .from(TABLES.VOICE_PROFILES)
-    .select('*')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false });
+  // Use direct fetch API to avoid Supabase client hanging
+  console.log('getVoiceProfiles: Fetching for user:', userId);
 
-  if (error) {
-    console.error('Error fetching voice profiles:', error);
-    throw error;
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseKey) {
+    throw new Error('Supabase configuration missing');
   }
 
-  return data as VoiceProfile[];
+  const accessToken = getAccessTokenFromStorage();
+  if (!accessToken) {
+    throw new Error('No valid session - please sign in again');
+  }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+  try {
+    const response = await fetch(
+      `${supabaseUrl}/rest/v1/${TABLES.VOICE_PROFILES}?user_id=eq.${userId}&select=*&order=created_at.desc`,
+      {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        signal: controller.signal,
+      }
+    );
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('getVoiceProfiles: Error response:', errorText);
+      throw new Error(`Supabase fetch failed: ${response.status} - ${errorText}`);
+    }
+
+    const data = await response.json();
+    console.log('getVoiceProfiles: Got', data.length, 'profiles');
+    return data as VoiceProfile[];
+  } catch (err) {
+    clearTimeout(timeoutId);
+    if (err instanceof Error && err.name === 'AbortError') {
+      console.error('getVoiceProfiles: Request timed out after 30s');
+      throw new Error('Request timed out - please try again');
+    }
+    throw err;
+  }
 }
 
 export async function getVoiceProfile(profileId: string): Promise<VoiceProfile | null> {
@@ -47,37 +105,15 @@ export async function getVoiceProfile(profileId: string): Promise<VoiceProfile |
     throw new Error('Supabase configuration missing');
   }
 
+  const accessToken = getAccessTokenFromStorage();
+  if (!accessToken) {
+    throw new Error('No valid session - please sign in again');
+  }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
+
   try {
-    // Get the access token directly from localStorage to avoid Supabase client issues
-    const storageKey = `sb-${new URL(supabaseUrl).hostname.split('.')[0]}-auth-token`;
-    const storedSession = localStorage.getItem(storageKey);
-    let accessToken: string | null = null;
-
-    if (storedSession) {
-      try {
-        const parsed = JSON.parse(storedSession);
-        accessToken = parsed.access_token;
-        console.log('getVoiceProfile: Found token in localStorage');
-      } catch {
-        console.error('getVoiceProfile: Failed to parse stored session');
-      }
-    }
-
-    if (!accessToken) {
-      console.log('getVoiceProfile: Falling back to supabase.auth.getSession()...');
-      const { data: sessionData } = await supabase.auth.getSession();
-      accessToken = sessionData.session?.access_token || null;
-    }
-
-    if (!accessToken) {
-      throw new Error('No valid session - please sign in again');
-    }
-
-    console.log('getVoiceProfile: Making request...');
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000);
-
     const response = await fetch(
       `${supabaseUrl}/rest/v1/${TABLES.VOICE_PROFILES}?id=eq.${profileId}&select=*`,
       {
@@ -110,6 +146,7 @@ export async function getVoiceProfile(profileId: string): Promise<VoiceProfile |
 
     return data[0] as VoiceProfile;
   } catch (err) {
+    clearTimeout(timeoutId);
     if (err instanceof Error && err.name === 'AbortError') {
       console.error('getVoiceProfile: Request timed out after 30s');
       throw new Error('Request timed out - please try again');
